@@ -1,0 +1,7 @@
+{
+  "name": "Hare Krishna Connect",
+  "description": "A comprehensive spiritual companion for ISKCON devotees featuring the Bhagavad Gita As It Is, Vaishnav Geet lyrics, a global Temple locator, and community news.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
