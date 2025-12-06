@@ -34,8 +34,8 @@ jobs:
       
       - name: Commit and push docs folder
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add docs
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          git add -f docs
           git commit -m "Deploy: Update docs folder with latest build" || echo "No changes to commit"
           git push
