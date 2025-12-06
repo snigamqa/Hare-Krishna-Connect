@@ -48,12 +48,6 @@ export interface Temple {
   };
 }
 
-export interface TempleWisdom {
-  verseReference: string;
-  translation: string;
-  significance: string;
-}
-
 export interface NewsItem {
   id: string;
   title: string;
