@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+    // Force rebuild: 2025-12-07
     return {
       base: '/hare-krishna-connect/',
       server: {
