@@ -83,6 +83,12 @@ export interface Affirmation {
   theme: string;
 }
 
+export interface TempleWisdom {
+  verseReference: string;
+  translation: string;
+  significance: string;
+}
+
 export enum LoadingState {
   IDLE = 'IDLE',
   LOADING = 'LOADING',
