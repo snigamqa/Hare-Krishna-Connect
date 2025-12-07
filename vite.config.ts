@@ -6,6 +6,7 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
       base: '/hare-krishna-connect/',
+      publicDir: 'public',
       build: {
         outDir: 'docs',
         emptyOutDir: true,
