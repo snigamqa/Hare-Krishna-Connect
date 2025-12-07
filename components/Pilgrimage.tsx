@@ -21,7 +21,7 @@ const Pilgrimage: React.FC = () => {
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [status, setStatus] = useState<LoadingState>(LoadingState.IDLE);
   const [imageStatus, setImageStatus] = useState<LoadingState>(LoadingState.IDLE);
-  const [isMuted, setIsMuted] = useState(true); // Start muted to allow autoplay
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -29,30 +29,29 @@ const Pilgrimage: React.FC = () => {
     audioRef.current = new Audio(MANTRA_AUDIO_URL);
     audioRef.current.loop = true;
     audioRef.current.volume = 0.3;
-    audioRef.current.muted = true; // Start muted
-    const playAudio = async () => {
-      try { 
-        if (audioRef.current) {
-          await audioRef.current.play();
-        }
+    return () => { 
+      if (audioRef.current) { 
+        audioRef.current.pause(); 
+        audioRef.current = null; 
       } 
-      catch (err) { 
-        console.log("Audio autoplay prevented:", err);
-      }
     };
-    playAudio();
-    return () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; } };
   }, []);
 
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.muted = isMuted;
-      // Ensure audio is playing when unmuting
-      if (!isMuted && audioRef.current.paused) {
-        audioRef.current.play().catch(err => console.log("Play prevented:", err));
+  const toggleAudio = async () => {
+    if (!audioRef.current) return;
+    
+    try {
+      if (isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        await audioRef.current.play();
+        setIsPlaying(true);
       }
+    } catch (err) {
+      console.error("Audio playback error:", err);
     }
-  }, [isMuted]);
+  };
 
   const fetchImage = async (prompt: string) => {
     setImageStatus(LoadingState.LOADING);
@@ -201,13 +200,14 @@ const Pilgrimage: React.FC = () => {
     <div className="max-w-7xl mx-auto p-4 md:p-8 relative">
       <div className="fixed bottom-6 right-6 z-50">
         <button 
-          onClick={() => setIsMuted(!isMuted)}
-          className="bg-white/90 backdrop-blur text-slate-800 rounded-full p-4 shadow-xl border border-slate-100 hover:scale-105 transition-transform"
+          onClick={toggleAudio}
+          className="bg-orange-500 hover:bg-orange-600 text-white rounded-full p-4 shadow-xl border-2 border-white hover:scale-110 transition-all duration-300"
+          title={isPlaying ? "Pause Hare Krishna Mantra" : "Play Hare Krishna Mantra"}
         >
-          {isMuted ? (
-             <svg className="w-6 h-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
+          {isPlaying ? (
+             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
           ) : (
-             <svg className="w-6 h-6 text-orange-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
           )}
         </button>
       </div>

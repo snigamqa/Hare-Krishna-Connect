@@ -6,6 +6,14 @@ const ai = new GoogleGenAI({ apiKey });
 
 const modelName = "gemini-2.5-flash";
 
+export interface VaishnavEvent {
+  date: string;
+  month: string;
+  day: string;
+  title: string;
+  description: string;
+}
+
 // --- Caching System ---
 const CACHE_PREFIX = 'hkc_cache_v1_';
 
@@ -40,6 +48,49 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, retries = 3, delay = 10
     return retryWithBackoff(fn, retries - 1, delay * 2);
   }
 }
+
+export const getVaishnavCalendarEvents = async (language: string = 'en'): Promise<VaishnavEvent[]> => {
+  const today = new Date();
+  const cacheKey = `vaishnav_calendar_${today.getFullYear()}_${today.getMonth()}_${language}`;
+  const cached = getFromCache<VaishnavEvent[]>(cacheKey);
+  if (cached) return cached;
+
+  if (!apiKey) return [];
+
+  try {
+    const result = await retryWithBackoff(async () => {
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: `List the next 3 upcoming ISKCON/Vaishnava calendar events from today (${today.toISOString().split('T')[0]}). Include festivals like Ekadashi, appearance/disappearance days of saints, major celebrations. Language: ${language}. Return as JSON array.`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                date: { type: Type.STRING },
+                month: { type: Type.STRING },
+                day: { type: Type.STRING },
+                title: { type: Type.STRING },
+                description: { type: Type.STRING },
+              },
+              required: ["date", "month", "day", "title", "description"],
+            },
+          },
+        },
+      });
+      const text = response.text;
+      if (!text) throw new Error("No response text");
+      return JSON.parse(text);
+    });
+    saveToCache(cacheKey, result);
+    return result;
+  } catch (error) {
+    console.error("Error fetching Vaishnava calendar:", error);
+    return [];
+  }
+};
 
 // --- Bhagavad Gita Services ---
 

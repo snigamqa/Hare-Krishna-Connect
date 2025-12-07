@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getISKCONNews } from '../services/geminiService';
+import { getISKCONNews, getVaishnavCalendarEvents, VaishnavEvent } from '../services/geminiService';
 import { NewsItem } from '../types';
 import { useLanguage } from './LanguageContext';
 
@@ -8,6 +8,8 @@ const NewsSection: React.FC = () => {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [locationStatus, setLocationStatus] = useState<string>(t('news.global'));
+  const [upcomingEvents, setUpcomingEvents] = useState<VaishnavEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
   
   // Initial load effect
   useEffect(() => {
@@ -67,6 +69,22 @@ const NewsSection: React.FC = () => {
 
     loadData();
 
+    // Load Vaishnava calendar events
+    const loadEvents = async () => {
+      setEventsLoading(true);
+      try {
+        const events = await getVaishnavCalendarEvents(language);
+        if (isMounted) {
+          setUpcomingEvents(events);
+        }
+      } catch (e) {
+        console.error("Failed to load events", e);
+      } finally {
+        if (isMounted) setEventsLoading(false);
+      }
+    };
+    loadEvents();
+
     return () => { isMounted = false; };
   }, [language, t]);
 
@@ -115,31 +133,47 @@ const NewsSection: React.FC = () => {
         <div className="md:col-span-4 space-y-8">
            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
               <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                 <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                 <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
                  {t('news.upcoming')}
               </h3>
-              <ul className="space-y-6">
-                 <li className="flex gap-4 items-center">
-                    <div className="flex-shrink-0 w-14 h-14 bg-blue-50 rounded-2xl flex flex-col items-center justify-center text-blue-600 font-bold border border-blue-100">
-                       <span className="text-[10px] uppercase tracking-wide">Sep</span>
-                       <span className="text-xl leading-none">14</span>
+              {eventsLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="animate-pulse flex gap-4">
+                      <div className="w-14 h-14 bg-slate-100 rounded-2xl"></div>
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-slate-100 rounded w-3/4"></div>
+                        <div className="h-3 bg-slate-100 rounded w-1/2"></div>
+                      </div>
                     </div>
-                    <div>
-                       <p className="font-bold text-slate-800">Radhastami</p>
-                       <p className="text-xs text-slate-500">Global Celebration</p>
-                    </div>
-                 </li>
-                 <li className="flex gap-4 items-center">
-                    <div className="flex-shrink-0 w-14 h-14 bg-purple-50 rounded-2xl flex flex-col items-center justify-center text-purple-600 font-bold border border-purple-100">
-                       <span className="text-[10px] uppercase tracking-wide">Oct</span>
-                       <span className="text-xl leading-none">22</span>
-                    </div>
-                    <div>
-                       <p className="font-bold text-slate-800">Govardhan Puja</p>
-                       <p className="text-xs text-slate-500">Major Temples</p>
-                    </div>
-                 </li>
-              </ul>
+                  ))}
+                </div>
+              ) : upcomingEvents.length > 0 ? (
+                <ul className="space-y-6">
+                  {upcomingEvents.map((event, idx) => {
+                    const colors = [
+                      { bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100' },
+                      { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-100' },
+                      { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-100' },
+                    ];
+                    const color = colors[idx % colors.length];
+                    return (
+                      <li key={idx} className="flex gap-4 items-center">
+                        <div className={`flex-shrink-0 w-14 h-14 ${color.bg} rounded-2xl flex flex-col items-center justify-center ${color.text} font-bold border ${color.border}`}>
+                          <span className="text-[10px] uppercase tracking-wide">{event.month}</span>
+                          <span className="text-xl leading-none">{event.day}</span>
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800">{event.title}</p>
+                          <p className="text-xs text-slate-500">{event.description}</p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="text-slate-400 text-sm text-center py-4">No upcoming events</p>
+              )}
            </div>
 
            <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-3xl shadow-lg text-white">
