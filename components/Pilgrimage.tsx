@@ -21,7 +21,7 @@ const Pilgrimage: React.FC = () => {
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [status, setStatus] = useState<LoadingState>(LoadingState.IDLE);
   const [imageStatus, setImageStatus] = useState<LoadingState>(LoadingState.IDLE);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(true); // Start muted to allow autoplay
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -29,16 +29,29 @@ const Pilgrimage: React.FC = () => {
     audioRef.current = new Audio(MANTRA_AUDIO_URL);
     audioRef.current.loop = true;
     audioRef.current.volume = 0.3;
+    audioRef.current.muted = true; // Start muted
     const playAudio = async () => {
-      try { if (audioRef.current) await audioRef.current.play(); } 
-      catch (err) { console.log("Audio autoplay prevented."); }
+      try { 
+        if (audioRef.current) {
+          await audioRef.current.play();
+        }
+      } 
+      catch (err) { 
+        console.log("Audio autoplay prevented:", err);
+      }
     };
     playAudio();
     return () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; } };
   }, []);
 
   useEffect(() => {
-    if (audioRef.current) audioRef.current.muted = isMuted;
+    if (audioRef.current) {
+      audioRef.current.muted = isMuted;
+      // Ensure audio is playing when unmuting
+      if (!isMuted && audioRef.current.paused) {
+        audioRef.current.play().catch(err => console.log("Play prevented:", err));
+      }
+    }
   }, [isMuted]);
 
   const fetchImage = async (prompt: string) => {
