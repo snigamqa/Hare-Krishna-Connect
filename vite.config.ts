@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     const buildNumber = process.env.BUILD_NUMBER || 'local';
     return {
-      base: '/hare-krishna-connect/',
+      base: '/Hare-Krishna-Connect/',
       publicDir: 'public',
       build: {
         outDir: 'docs',
