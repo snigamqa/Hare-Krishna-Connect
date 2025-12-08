@@ -1,21 +1,21 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { GoogleGenAI, Type } from '@google/genai';
+import Groq from 'groq-sdk';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const API_KEY = process.env.GEMINI_API_KEY;
+const API_KEY = process.env.GROQ_API_KEY;
 
 if (!API_KEY) {
-  console.error('ERROR: GEMINI_API_KEY environment variable not set');
+  console.error('ERROR: GROQ_API_KEY environment variable not set');
   process.exit(1);
 }
 
-const ai = new GoogleGenAI({ apiKey: API_KEY });
-const modelName = 'gemini-2.5-flash';
+const groq = new Groq({ apiKey: API_KEY });
+const modelName = 'llama-3.1-70b-versatile';
 
 // Middleware
 app.use(cors({
@@ -43,6 +43,27 @@ async function retryWithBackoff(fn, retries = 3, delay = 1000) {
   }
 }
 
+// Helper to call Groq with JSON response
+async function callGroqJSON(prompt) {
+  const response = await groq.chat.completions.create({
+    model: modelName,
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a helpful assistant that ALWAYS responds with valid JSON only. No markdown, no explanations, just pure JSON.'
+      },
+      {
+        role: 'user',
+        content: prompt
+      }
+    ],
+    temperature: 0.7,
+    response_format: { type: 'json_object' }
+  });
+  
+  return JSON.parse(response.choices[0].message.content);
+}
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -58,25 +79,8 @@ app.post('/api/gita/verse', async (req, res) => {
     }
 
     const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: `Gita Chapter ${chapter} Verse ${verse} by Prabhupada. Lang: ${language}. JSON: sanskrit, transliteration, translation, short_purport (max 50 words).`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              chapter: { type: Type.INTEGER },
-              verse: { type: Type.INTEGER },
-              sanskrit: { type: Type.STRING },
-              transliteration: { type: Type.STRING },
-              translation: { type: Type.STRING },
-              purport: { type: Type.STRING },
-            },
-          },
-        },
-      });
-      return JSON.parse(response.text);
+      const prompt = `Provide Bhagavad Gita Chapter ${chapter} Verse ${verse} as taught by Srila Prabhupada. Language: ${language}. Return JSON with: chapter (number), verse (number), sanskrit (text), transliteration (romanized sanskrit), translation (English translation), purport (brief explanation, max 50 words).`;
+      return await callGroqJSON(prompt);
     });
 
     res.json(result);
@@ -96,21 +100,8 @@ app.post('/api/gita/chapter', async (req, res) => {
     }
 
     const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: `Title and very brief summary (max 30 words) of Bhagavad Gita Chapter ${chapter}. Language: ${language}.`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              summary: { type: Type.STRING },
-            },
-          },
-        },
-      });
-      return JSON.parse(response.text);
+      const prompt = `Provide title and brief summary (max 30 words) of Bhagavad Gita Chapter ${chapter}. Language: ${language}. Return JSON with: title, summary.`;
+      return await callGroqJSON(prompt);
     });
 
     res.json(result);
@@ -121,6 +112,7 @@ app.post('/api/gita/chapter', async (req, res) => {
 });
 
 // Get Krishna Leela
+// Get Krishna Leela
 app.post('/api/leelas/story', async (req, res) => {
   try {
     const { title, language = 'en' } = req.body;
@@ -130,26 +122,8 @@ app.post('/api/leelas/story', async (req, res) => {
     }
 
     const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: `Tell the story of Krishna's "${title}" leela/pastime. Language: ${language}. JSON with: title, category (childhood/vrindavan/kurukshetra), description (1 line), fullStory (detailed 2-3 paragraphs), moralLesson (1 paragraph), relatedVerses (array of 2-3 Gita verses), imageDescription (detailed visual description for AI art).`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              category: { type: Type.STRING },
-              description: { type: Type.STRING },
-              fullStory: { type: Type.STRING },
-              moralLesson: { type: Type.STRING },
-              relatedVerses: { type: Type.ARRAY, items: { type: Type.STRING } },
-              imageDescription: { type: Type.STRING },
-            },
-          },
-        },
-      });
-      return JSON.parse(response.text);
+      const prompt = `Tell the story of Krishna's "${title}" leela/pastime. Language: ${language}. Return JSON with: title, category (childhood/vrindavan/kurukshetra), description (1 line), fullStory (detailed 2-3 paragraphs), moralLesson (1 paragraph), relatedVerses (array of 2-3 Gita verse references), imageDescription (detailed visual description).`;
+      return await callGroqJSON(prompt);
     });
 
     res.json(result);
@@ -165,18 +139,9 @@ app.post('/api/leelas/list', async (req, res) => {
     const { language = 'en' } = req.body;
 
     const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: `List 15 most famous Krishna leelas/pastimes (short names). Language: ${language}. Return as JSON array of strings only.`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
-          },
-        },
-      });
-      return JSON.parse(response.text);
+      const prompt = `List 15 most famous Krishna leelas/pastimes (short names). Language: ${language}. Return JSON with: leelas (array of strings).`;
+      const data = await callGroqJSON(prompt);
+      return data.leelas || data;
     });
 
     res.json(result);
@@ -191,34 +156,15 @@ app.post('/api/news', async (req, res) => {
   try {
     const { coords, language = 'en' } = req.body;
 
-    let prompt = `Latest ISKCON news and events. `;
+    let prompt = `Generate latest ISKCON news and events. `;
     if (coords) {
       prompt += `Near location (${coords.lat}, ${coords.lng}). `;
     }
-    prompt += `Language: ${language}. Return JSON: array of {id, title, date, summary, source}.`;
+    prompt += `Language: ${language}. Return JSON with: news (array of objects with id, title, date, summary, source).`;
 
     const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.STRING },
-                title: { type: Type.STRING },
-                date: { type: Type.STRING },
-                summary: { type: Type.STRING },
-                source: { type: Type.STRING },
-              },
-            },
-          },
-        },
-      });
-      return JSON.parse(response.text);
+      const data = await callGroqJSON(prompt);
+      return data.news || data;
     });
 
     res.json(result);
@@ -235,27 +181,9 @@ app.post('/api/calendar/events', async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
 
     const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: `List the next 3 upcoming ISKCON/Vaishnava calendar events from today (${today}). Include festivals like Ekadashi, appearance/disappearance days of saints, major celebrations. Language: ${language}. Return as JSON array.`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                date: { type: Type.STRING },
-                month: { type: Type.STRING },
-                day: { type: Type.STRING },
-                title: { type: Type.STRING },
-                description: { type: Type.STRING },
-              },
-            },
-          },
-        },
-      });
-      return JSON.parse(response.text);
+      const prompt = `List the next 3 upcoming ISKCON/Vaishnava calendar events from today (${today}). Include festivals like Ekadashi, appearance/disappearance days of saints, major celebrations. Language: ${language}. Return JSON with: events (array of objects with date, month, day, title, description).`;
+      const data = await callGroqJSON(prompt);
+      return data.events || data;
     });
 
     res.json(result);
@@ -265,7 +193,7 @@ app.post('/api/calendar/events', async (req, res) => {
   }
 });
 
-// Generate Image (for Krishna stories, saints, etc)
+// Generate Image (placeholder)
 app.post('/api/image/generate', async (req, res) => {
   try {
     const { prompt } = req.body;
@@ -274,32 +202,14 @@ app.post('/api/image/generate', async (req, res) => {
       return res.status(400).json({ error: 'Prompt required' });
     }
 
-    const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-exp',
-        contents: [
-          {
-            inlineData: {
-              mimeType: 'image/png',
-              data: '',
-            },
-          },
-          `Generate an image for this prompt: ${prompt}`,
-        ],
-      });
-
-      // Fallback: Return placeholder since Gemini 2.5 may have limited image generation
-      return {
-        success: true,
-        message: 'Image generation queued. Using placeholder for now.',
-        prompt: prompt,
-      };
+    // Return placeholder
+    res.json({
+      success: true,
+      message: 'Image generation not available with Groq. Using placeholder.',
+      prompt: prompt,
     });
-
-    res.json(result);
   } catch (error) {
     console.error('Image generation error:', error);
-    // Return graceful error for image generation
     res.status(500).json({
       success: false,
       message: 'Image generation not available',
@@ -314,23 +224,8 @@ app.post('/api/affirmation', async (req, res) => {
     const { language = 'en' } = req.body;
 
     const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: `Daily Krishna devotional affirmation. Language: ${language}. JSON: quote, verse, meaning, theme.`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              quote: { type: Type.STRING },
-              verse: { type: Type.STRING },
-              meaning: { type: Type.STRING },
-              theme: { type: Type.STRING },
-            },
-          },
-        },
-      });
-      return JSON.parse(response.text);
+      const prompt = `Generate a daily Krishna devotional affirmation. Language: ${language}. Return JSON with: quote (inspirational quote), verse (related Bhagavad Gita verse reference), meaning (brief explanation), theme (spiritual theme).`;
+      return await callGroqJSON(prompt);
     });
 
     res.json(result);

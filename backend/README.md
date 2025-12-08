@@ -2,6 +2,8 @@
 
 Secure Node.js/Express backend for the Hare Krishna Connect application.
 
+**Last Updated**: December 8, 2025 - CORS configuration updated for GitHub Pages
+
 ## Setup
 
 ### 1. Install Dependencies
