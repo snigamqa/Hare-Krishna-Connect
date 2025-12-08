@@ -34,16 +34,6 @@ function saveToCache(key: string, data: any) {
   }
 }
 
-async function retryWithBackoff<T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
-  try {
-    return await fn();
-  } catch (error) {
-    if (retries === 0) throw error;
-    await new Promise(resolve => setTimeout(resolve, delay));
-    return retryWithBackoff(fn, retries - 1, delay * 2);
-  }
-}
-
 // Helper to call backend API
 async function callBackendAPI<T>(endpoint: string, body: any): Promise<T> {
   try {
@@ -66,22 +56,6 @@ async function callBackendAPI<T>(endpoint: string, body: any): Promise<T> {
     throw error;
   }
 }
-
-export const getVaishnavCalendarEvents = async (language: string = 'en'): Promise<VaishnavEvent[]> => {
-  const today = new Date();
-  const cacheKey = `vaishnav_calendar_${today.getFullYear()}_${today.getMonth()}_${language}`;
-  const cached = getFromCache<VaishnavEvent[]>(cacheKey);
-  if (cached) return cached;
-
-  try {
-    const result = await callBackendAPI<VaishnavEvent[]>('/api/calendar/events', { language });
-    saveToCache(cacheKey, result);
-    return result;
-  } catch (error) {
-    console.error("Error fetching Vaishnava calendar:", error);
-    return [];
-  }
-};
 
 // --- Bhagavad Gita Services ---
 
@@ -121,92 +95,26 @@ export const getVerse = async (chapter: number, verse: number, language: string)
     throw error;
   }
 };
-            translation: { type: Type.STRING },
-            purport: { type: Type.STRING },
-          },
-        },
-      },
-    });
 
-    const text = response.text;
-    if (!text) throw new Error("No data returned");
-    return JSON.parse(text) as Verse;
-  });
-  
-  saveToCache(cacheKey, result);
-  return result;
-};
-
-export const getGitaAffirmation = async (mood: string, language: string): Promise<Affirmation> => {
-  const cacheKey = `affirmation_${mood}_${language}`;
-  const cached = getFromCache<Affirmation>(cacheKey);
-  if (cached) return cached;
-
-  if (!apiKey) throw new Error("API Key missing");
-
-  const result = await retryWithBackoff(async () => {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: `Spiritual mentor for Gen Z feeling "${mood}". 
-      Return JSON: quote (Gita based), verse (e.g. "2.47"), meaning (1 sentence), theme (1 word).
-      Language: ${language}.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            quote: { type: Type.STRING },
-            verse: { type: Type.STRING },
-            meaning: { type: Type.STRING },
-            theme: { type: Type.STRING },
-          },
-        },
-      },
-    });
-
-    const text = response.text;
-    if (!text) throw new Error("No data returned");
-    return JSON.parse(text) as Affirmation;
-  });
-
-  saveToCache(cacheKey, result);
-  return result;
-};
-
-// --- Vaishnav Geet Services ---
+// --- Bhajans/Songs Services ---
 
 export const getBhajanLyrics = async (songTitle: string, language: string): Promise<Song> => {
   const cacheKey = `lyrics_${songTitle}_${language}`;
   const cached = getFromCache<Song>(cacheKey);
   if (cached) return cached;
 
-  if (!apiKey) throw new Error("API Key missing");
-
-  const result = await retryWithBackoff(async () => {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: `Lyrics and translation for "${songTitle}" (Vaishnav song). Lang: ${language}. JSON.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            author: { type: Type.STRING },
-            lyrics: { type: Type.ARRAY, items: { type: Type.STRING } },
-            translation: { type: Type.ARRAY, items: { type: Type.STRING } },
-          },
-        },
-      },
-    });
-
-    const text = response.text;
-    if (!text) throw new Error("No data returned");
-    return JSON.parse(text) as Song;
-  });
-
-  saveToCache(cacheKey, result);
-  return result;
+  // Return placeholder song (backend doesn't have this endpoint)
+  return {
+    title: songTitle,
+    author: "Vaishnava",
+    lyrics: [
+      "Hare Krishna, Hare Krishna",
+      "Krishna Krishna, Hare Hare",
+      "Hare Rama, Hare Rama",
+      "Rama Rama, Hare Hare"
+    ],
+    translation: ["Lord Krishna, Lord Krishna", "Krishna Krishna, Lord Lord", "Lord Rama, Lord Rama", "Rama Rama, Lord Lord"],
+  };
 };
 
 // --- Temple Locator Services ---
@@ -216,50 +124,19 @@ export const findTemples = async (location: string, language: string): Promise<T
   const cached = getFromCache<Temple[]>(cacheKey);
   if (cached) return cached;
 
-  if (!apiKey) return [];
+  // Return placeholder temples (backend doesn't have this endpoint)
+  const temples: Temple[] = [
+    {
+      name: "ISKCON Temple",
+      address: "Main Street",
+      city: location,
+      country: "Global",
+      description: "Visit local ISKCON temple"
+    }
+  ];
   
-  try {
-    const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: `List 5 ISKCON centers in/near ${location}. JSON. Lang: ${language}.`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING },
-                address: { type: Type.STRING },
-                city: { type: Type.STRING },
-                country: { type: Type.STRING },
-                description: { type: Type.STRING },
-                timings: { type: Type.STRING },
-                coordinates: {
-                  type: Type.OBJECT,
-                  properties: {
-                     lat: { type: Type.NUMBER },
-                     lng: { type: Type.NUMBER }
-                  }
-                }
-              },
-            },
-          },
-        },
-      });
-
-      const text = response.text;
-      if (!text) return [];
-      return JSON.parse(text) as Temple[];
-    });
-    
-    saveToCache(cacheKey, result);
-    return result;
-  } catch (e) {
-    console.error(e);
-    return [];
-  }
+  saveToCache(cacheKey, temples);
+  return temples;
 };
 
 export const getTempleWisdom = async (templeName: string, location: string, language: string): Promise<TempleWisdom | null> => {
@@ -267,37 +144,53 @@ export const getTempleWisdom = async (templeName: string, location: string, lang
   const cached = getFromCache<TempleWisdom>(cacheKey);
   if (cached) return cached;
 
-  if (!apiKey) return null;
+  // Return placeholder wisdom
+  const wisdom: TempleWisdom = {
+    verseReference: "Bhagavad Gita 9.26",
+    translation: "If one offers Me with love and devotion a leaf, a flower, fruit and water, I will accept it.",
+    significance: "Devotion is more important than material offerings."
+  };
 
-  try {
-    const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: `Select 1 Gita verse for ${templeName}, ${location}. Lang: ${language}. JSON: verseReference, translation, significance (1 sentence).`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              verseReference: { type: Type.STRING },
-              translation: { type: Type.STRING },
-              significance: { type: Type.STRING },
-            },
-          },
-        },
-      });
+  saveToCache(cacheKey, wisdom);
+  return wisdom;
+};
 
-      const text = response.text;
-      if (!text) throw new Error("No data returned");
-      return JSON.parse(text) as TempleWisdom;
-    });
+// --- Pilgrimage & Knowledge Services ---
 
-    saveToCache(cacheKey, result);
-    return result;
-  } catch (e) {
-    console.error("Temple wisdom fetch failed", e);
-    return null;
-  }
+export const getSaintDetails = async (name: string, language: string): Promise<Saint> => {
+  const cacheKey = `saint_${name}_${language}`;
+  const cached = getFromCache<Saint>(cacheKey);
+  if (cached) return cached;
+
+  // Return placeholder saint
+  const saint: Saint = {
+    name: name,
+    title: "Great Vaishnava Saint",
+    bio: "A devoted follower of Lord Krishna who made significant contributions to Vaishnavism.",
+    contributions: ["Spiritual teachings", "Temple establishment", "Community service"],
+    placesFound: ["Vrindavan", "Mathura"]
+  };
+
+  saveToCache(cacheKey, saint);
+  return saint;
+};
+
+export const getHolyPlaceDetails = async (placeName: string, language: string): Promise<HolyPlace> => {
+  const cacheKey = `place_${placeName}_${language}`;
+  const cached = getFromCache<HolyPlace>(cacheKey);
+  if (cached) return cached;
+
+  // Return placeholder place
+  const place: HolyPlace = {
+    name: placeName,
+    location: "Braj Bhumi",
+    description: "A sacred place associated with Lord Krishna.",
+    pastime: "Krishna performed divine pastimes here.",
+    significance: "This place is sanctified by Krishna's presence and activities."
+  };
+
+  saveToCache(cacheKey, place);
+  return place;
 };
 
 // --- News Services ---
@@ -318,118 +211,25 @@ export const getISKCONNews = async (location?: {lat: number, lng: number}, langu
   }
 };
 
-// --- Pilgrimage & Knowledge Services ---
+// --- Calendar Services ---
 
-export const getSaintDetails = async (name: string, language: string): Promise<Saint> => {
-  const cacheKey = `saint_${name}_${language}`;
-  const cached = getFromCache<Saint>(cacheKey);
+export const getVaishnavCalendarEvents = async (language: string = 'en'): Promise<VaishnavEvent[]> => {
+  const today = new Date();
+  const cacheKey = `vaishnav_calendar_${today.getFullYear()}_${today.getMonth()}_${language}`;
+  const cached = getFromCache<VaishnavEvent[]>(cacheKey);
   if (cached) return cached;
 
-  if (!apiKey) throw new Error("API Key missing");
-
-  const result = await retryWithBackoff(async () => {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: `Info on saint "${name}". Lang: ${language}. JSON: name, title, bio (brief), contributions (list), placesFound (list), imageDescription.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING },
-            title: { type: Type.STRING },
-            bio: { type: Type.STRING },
-            contributions: { type: Type.ARRAY, items: { type: Type.STRING } },
-            placesFound: { type: Type.ARRAY, items: { type: Type.STRING } },
-            imageDescription: { type: Type.STRING },
-          },
-        },
-      },
-    });
-
-    const text = response.text;
-    if (!text) throw new Error("No data returned");
-    return JSON.parse(text) as Saint;
-  });
-
-  saveToCache(cacheKey, result);
-  return result;
-};
-
-export const getHolyPlaceDetails = async (placeName: string, language: string): Promise<HolyPlace> => {
-  const cacheKey = `place_${placeName}_${language}`;
-  const cached = getFromCache<HolyPlace>(cacheKey);
-  if (cached) return cached;
-
-  if (!apiKey) throw new Error("API Key missing");
-
-  const result = await retryWithBackoff(async () => {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: `Info on holy place "${placeName}" in Braj. Lang: ${language}. JSON: name, location, description (brief), pastime, significance, imageDescription.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING },
-            location: { type: Type.STRING },
-            description: { type: Type.STRING },
-            pastime: { type: Type.STRING },
-            significance: { type: Type.STRING },
-            imageDescription: { type: Type.STRING },
-          },
-        },
-      },
-    });
-
-    const text = response.text;
-    if (!text) throw new Error("No data returned");
-    return JSON.parse(text) as HolyPlace;
-  });
-  
-  saveToCache(cacheKey, result);
-  return result;
-};
-
-// --- Image Generation Service ---
-
-export const generateDevotionalImage = async (prompt: string): Promise<string | null> => {
-  // Caching images is heavy on storage, but for "super fast" user experience we can try.
-  const cacheKey = `img_${prompt.substring(0, 30)}`; 
-  const cached = getFromCache<string>(cacheKey);
-  if (cached) return cached;
-
-  if (!apiKey) return null;
   try {
-    const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [{ text: `Photorealistic devotional painting: ${prompt}.` }],
-        },
-        config: {
-          imageConfig: {
-            aspectRatio: "16:9", 
-          }
-        }
-      });
-
-      for (const part of response.candidates?.[0]?.content?.parts || []) {
-        if (part.inlineData) {
-          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-        }
-      }
-      return null;
-    });
-
-    if (result) saveToCache(cacheKey, result);
+    const result = await callBackendAPI<VaishnavEvent[]>('/api/calendar/events', { language });
+    saveToCache(cacheKey, result);
     return result;
-  } catch (e) {
-    console.error("Image generation failed", e);
-    return null;
+  } catch (error) {
+    console.error("Error fetching Vaishnava calendar:", error);
+    return [];
   }
 };
+
+// --- Krishna Leelas Services ---
 
 export const getKrishnaLeela = async (leelaTitle: string, language: string): Promise<KrishnaLeela | null> => {
   const cacheKey = `leela_${leelaTitle}_${language}`;
@@ -461,5 +261,57 @@ export const getLeelasList = async (language: string): Promise<string[]> => {
   } catch (e) {
     console.error("Error fetching leelas list:", e);
     return [];
+  }
+};
+
+// --- Affirmations ---
+
+export const getGitaAffirmation = async (mood: string, language: string): Promise<Affirmation> => {
+  const cacheKey = `affirmation_${mood}_${language}`;
+  const cached = getFromCache<Affirmation>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const result = await callBackendAPI<Affirmation>('/api/affirmation', { language });
+    saveToCache(cacheKey, result);
+    return result;
+  } catch (error) {
+    console.error("Error fetching affirmation:", error);
+    throw error;
+  }
+};
+
+// --- Image Generation ---
+
+export const generateDevotionalImage = async (prompt: string): Promise<string | null> => {
+  try {
+    // Use a placeholder approach - return a data URL for a simple placeholder
+    // In production, this would call /api/image/generate on the backend
+    
+    // For now, return a simple gradient placeholder
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Create a gradient background
+    const gradient = ctx.createLinearGradient(0, 0, 512, 512);
+    gradient.addColorStop(0, '#FFD700');
+    gradient.addColorStop(1, '#FFA500');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Add text
+    ctx.font = 'bold 24px Arial';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center';
+    ctx.fillText('Image', 256, 240);
+    ctx.fillText('Coming Soon', 256, 280);
+
+    return canvas.toDataURL('image/png');
+  } catch (error) {
+    console.error("Image generation failed:", error);
+    return null;
   }
 };
