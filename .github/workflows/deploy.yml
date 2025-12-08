@@ -28,7 +28,7 @@ jobs:
       - name: Build application
         run: npm run build
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VITE_API_URL: https://hare-krishna-api.railway.app
           BUILD_NUMBER: ${{ github.sha }}
 
       - name: Deploy to gh-pages branch

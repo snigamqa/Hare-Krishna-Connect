@@ -1,10 +1,7 @@
-import { GoogleGenAI, Type } from "@google/genai";
 import { Verse, Song, Temple, NewsItem, Saint, HolyPlace, Affirmation, TempleWisdom, KrishnaLeela } from "../types";
 
-const apiKey = process.env.API_KEY || "";
-const ai = new GoogleGenAI({ apiKey });
-
-const modelName = "gemini-2.5-flash";
+// Backend API URL - defaults to localhost for development
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export interface VaishnavEvent {
   date: string;
@@ -21,7 +18,6 @@ function getFromCache<T>(key: string): T | null {
   try {
     const cached = localStorage.getItem(CACHE_PREFIX + key);
     if (cached) {
-      // Optional: Add expiry check here if needed
       return JSON.parse(cached);
     }
   } catch (e) {
@@ -42,10 +38,32 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, retries = 3, delay = 10
   try {
     return await fn();
   } catch (error) {
-    console.warn(`API call failed. Retrying... (${retries} attempts left)`);
     if (retries === 0) throw error;
     await new Promise(resolve => setTimeout(resolve, delay));
     return retryWithBackoff(fn, retries - 1, delay * 2);
+  }
+}
+
+// Helper to call backend API
+async function callBackendAPI<T>(endpoint: string, body: any): Promise<T> {
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || `API error: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Backend API error at ${endpoint}:`, error);
+    throw error;
   }
 }
 
@@ -55,35 +73,8 @@ export const getVaishnavCalendarEvents = async (language: string = 'en'): Promis
   const cached = getFromCache<VaishnavEvent[]>(cacheKey);
   if (cached) return cached;
 
-  if (!apiKey) return [];
-
   try {
-    const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: `List the next 3 upcoming ISKCON/Vaishnava calendar events from today (${today.toISOString().split('T')[0]}). Include festivals like Ekadashi, appearance/disappearance days of saints, major celebrations. Language: ${language}. Return as JSON array.`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                date: { type: Type.STRING },
-                month: { type: Type.STRING },
-                day: { type: Type.STRING },
-                title: { type: Type.STRING },
-                description: { type: Type.STRING },
-              },
-              required: ["date", "month", "day", "title", "description"],
-            },
-          },
-        },
-      });
-      const text = response.text;
-      if (!text) throw new Error("No response text");
-      return JSON.parse(text);
-    });
+    const result = await callBackendAPI<VaishnavEvent[]>('/api/calendar/events', { language });
     saveToCache(cacheKey, result);
     return result;
   } catch (error) {
@@ -99,27 +90,10 @@ export const getChapterSummary = async (chapterNumber: number, language: string)
   const cached = getFromCache<{ title: string; summary: string }>(cacheKey);
   if (cached) return cached;
 
-  if (!apiKey) return { title: `Chapter ${chapterNumber}`, summary: "API Key missing. Please configure your API key." };
-
   try {
-    const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: `Title and very brief summary (max 30 words) of Bhagavad Gita Chapter ${chapterNumber}. Language: ${language}.`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              summary: { type: Type.STRING },
-            },
-          },
-        },
-      });
-      const text = response.text;
-      if (!text) throw new Error("No response text");
-      return JSON.parse(text);
+    const result = await callBackendAPI<{ title: string; summary: string }>('/api/gita/chapter', {
+      chapter: chapterNumber,
+      language,
     });
     saveToCache(cacheKey, result);
     return result;
@@ -134,21 +108,19 @@ export const getVerse = async (chapter: number, verse: number, language: string)
   const cached = getFromCache<Verse>(cacheKey);
   if (cached) return cached;
 
-  if (!apiKey) throw new Error("API Key missing");
-
-  const result = await retryWithBackoff(async () => {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: `Gita Chapter ${chapter} Verse ${verse} by Prabhupada. Lang: ${language}. JSON: sanskrit, transliteration, translation, short_purport (max 50 words).`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            chapter: { type: Type.INTEGER },
-            verse: { type: Type.INTEGER },
-            sanskrit: { type: Type.STRING },
-            transliteration: { type: Type.STRING },
+  try {
+    const result = await callBackendAPI<Verse>('/api/gita/verse', {
+      chapter,
+      verse,
+      language,
+    });
+    saveToCache(cacheKey, result);
+    return result;
+  } catch (error) {
+    console.error("Error fetching verse:", error);
+    throw error;
+  }
+};
             translation: { type: Type.STRING },
             purport: { type: Type.STRING },
           },
@@ -336,47 +308,10 @@ export const getISKCONNews = async (location?: {lat: number, lng: number}, langu
   const cached = getFromCache<NewsItem[]>(cacheKey);
   if (cached) return cached;
 
-  if (!apiKey) return [];
-
   try {
-    let prompt = `Latest ISKCON news. Lang: ${language}.`;
-    if (location) {
-      prompt += ` Near lat ${location.lat}, lng ${location.lng} or global.`;
-    } else {
-      prompt += ` Focus on Global.`;
-    }
-    prompt += ` Format: ID:::Title:::Date:::Source:::Summary|||...`;
-
-    const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: modelName, 
-        contents: prompt,
-        config: {
-          tools: [{ googleSearch: {} }], 
-        }
-      });
-
-      const text = response.text;
-      if (!text) return [];
-
-      const items = text.split('|||').map((rawItem, index) => {
-          const parts = rawItem.trim().split(':::');
-          if (parts.length < 4) return null;
-          return {
-              id: parts[0] || `news-${index}`,
-              title: parts[1]?.trim(),
-              date: parts[2]?.trim(),
-              source: parts[3]?.trim(),
-              summary: parts[4]?.trim() || "Read more."
-          } as NewsItem;
-      }).filter(item => item !== null) as NewsItem[];
-
-      return items;
-    });
-
+    const result = await callBackendAPI<NewsItem[]>('/api/news', { coords: location, language });
     saveToCache(cacheKey, result);
     return result;
-
   } catch (e) {
     console.error("News fetch error", e);
     return [];
@@ -501,33 +436,10 @@ export const getKrishnaLeela = async (leelaTitle: string, language: string): Pro
   const cached = getFromCache<KrishnaLeela>(cacheKey);
   if (cached) return cached;
 
-  if (!apiKey) return null;
-
   try {
-    const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: `Tell the story of Krishna's "${leelaTitle}" leela/pastime. Language: ${language}. JSON with: title, category (childhood/vrindavan/kurukshetra), description (1 line), fullStory (detailed 2-3 paragraphs), moralLesson (1 paragraph), relatedVerses (array of 2-3 Gita verses), imageDescription (detailed visual description for AI art).`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              category: { type: Type.STRING },
-              description: { type: Type.STRING },
-              fullStory: { type: Type.STRING },
-              moralLesson: { type: Type.STRING },
-              relatedVerses: { type: Type.ARRAY, items: { type: Type.STRING } },
-              imageDescription: { type: Type.STRING },
-            },
-            required: ["title", "category", "description", "fullStory", "moralLesson", "relatedVerses", "imageDescription"],
-          },
-        },
-      });
-      const text = response.text;
-      if (!text) throw new Error("No response text");
-      return JSON.parse(text);
+    const result = await callBackendAPI<KrishnaLeela>('/api/leelas/story', {
+      title: leelaTitle,
+      language,
     });
     saveToCache(cacheKey, result);
     return result;
@@ -542,25 +454,8 @@ export const getLeelasList = async (language: string): Promise<string[]> => {
   const cached = getFromCache<string[]>(cacheKey);
   if (cached) return cached;
 
-  if (!apiKey) return [];
-
   try {
-    const result = await retryWithBackoff(async () => {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: `List 15 most famous Krishna leelas/pastimes (short names). Language: ${language}. Return as JSON array of strings only.`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
-          },
-        },
-      });
-      const text = response.text;
-      if (!text) throw new Error("No response text");
-      return JSON.parse(text);
-    });
+    const result = await callBackendAPI<string[]>('/api/leelas/list', { language });
     saveToCache(cacheKey, result);
     return result;
   } catch (e) {
