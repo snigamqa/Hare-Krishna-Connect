@@ -15,7 +15,7 @@ if (!API_KEY) {
 }
 
 const groq = new Groq({ apiKey: API_KEY });
-const modelName = 'llama-3.1-70b-versatile';
+const modelName = 'llama-3.3-70b-versatile';
 
 // Middleware
 app.use(cors({
