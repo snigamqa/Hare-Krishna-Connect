@@ -18,7 +18,18 @@ const ai = new GoogleGenAI({ apiKey: API_KEY });
 const modelName = 'gemini-2.5-flash';
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://snigamqa.github.io',
+    'https://snigamqa.github.io/Hare-Krishna-Connect',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:5174',
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json());
 
 // Helper functions
