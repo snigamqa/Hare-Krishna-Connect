@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Verse, Song, Temple, NewsItem, Saint, HolyPlace, Affirmation, TempleWisdom } from "../types";
+import { Verse, Song, Temple, NewsItem, Saint, HolyPlace, Affirmation, TempleWisdom, KrishnaLeela } from "../types";
 
 const apiKey = process.env.API_KEY || "";
 const ai = new GoogleGenAI({ apiKey });
@@ -493,5 +493,78 @@ export const generateDevotionalImage = async (prompt: string): Promise<string | 
   } catch (e) {
     console.error("Image generation failed", e);
     return null;
+  }
+};
+
+export const getKrishnaLeela = async (leelaTitle: string, language: string): Promise<KrishnaLeela | null> => {
+  const cacheKey = `leela_${leelaTitle}_${language}`;
+  const cached = getFromCache<KrishnaLeela>(cacheKey);
+  if (cached) return cached;
+
+  if (!apiKey) return null;
+
+  try {
+    const result = await retryWithBackoff(async () => {
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: `Tell the story of Krishna's "${leelaTitle}" leela/pastime. Language: ${language}. JSON with: title, category (childhood/vrindavan/kurukshetra), description (1 line), fullStory (detailed 2-3 paragraphs), moralLesson (1 paragraph), relatedVerses (array of 2-3 Gita verses), imageDescription (detailed visual description for AI art).`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              category: { type: Type.STRING },
+              description: { type: Type.STRING },
+              fullStory: { type: Type.STRING },
+              moralLesson: { type: Type.STRING },
+              relatedVerses: { type: Type.ARRAY, items: { type: Type.STRING } },
+              imageDescription: { type: Type.STRING },
+            },
+            required: ["title", "category", "description", "fullStory", "moralLesson", "relatedVerses", "imageDescription"],
+          },
+        },
+      });
+      const text = response.text;
+      if (!text) throw new Error("No response text");
+      return JSON.parse(text);
+    });
+    saveToCache(cacheKey, result);
+    return result;
+  } catch (e) {
+    console.error("Error fetching Krishna leela:", e);
+    return null;
+  }
+};
+
+export const getLeelasList = async (language: string): Promise<string[]> => {
+  const cacheKey = `leelas_list_${language}`;
+  const cached = getFromCache<string[]>(cacheKey);
+  if (cached) return cached;
+
+  if (!apiKey) return [];
+
+  try {
+    const result = await retryWithBackoff(async () => {
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: `List 15 most famous Krishna leelas/pastimes (short names). Language: ${language}. Return as JSON array of strings only.`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+        },
+      });
+      const text = response.text;
+      if (!text) throw new Error("No response text");
+      return JSON.parse(text);
+    });
+    saveToCache(cacheKey, result);
+    return result;
+  } catch (e) {
+    console.error("Error fetching leelas list:", e);
+    return [];
   }
 };

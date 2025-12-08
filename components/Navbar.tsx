@@ -9,9 +9,11 @@ const Navbar: React.FC = () => {
 
   const navLinks = [
     { name: t('nav.home'), path: '/' },
-    // Removed Affirmations/Soul Compass link as it is now the Home hero experience
     { name: t('nav.gita'), path: '/gita' },
     { name: t('nav.geet'), path: '/bhajans' },
+    { name: 'Daily Practice', path: '/practice' },
+    { name: 'Krishna Leelas', path: '/leelas' },
+    { name: 'Mala Counter', path: '/mala' },
     { name: t('nav.pilgrimage'), path: '/pilgrimage' },
     { name: t('nav.temples'), path: '/temples' },
     { name: t('nav.news'), path: '/news' },

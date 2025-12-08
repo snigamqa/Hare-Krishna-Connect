@@ -9,6 +9,9 @@ import TempleLocator from './components/TempleLocator';
 import NewsSection from './components/NewsSection';
 import Pilgrimage from './components/Pilgrimage';
 import Affirmations from './components/Affirmations';
+import DailyPractice from './components/DailyPractice';
+import KrishnaLeelas from './components/KrishnaLeelas';
+import MalaCounter from './components/MalaCounter';
 import { LanguageProvider } from './components/LanguageContext';
 
 const App: React.FC = () => {
@@ -25,6 +28,9 @@ const App: React.FC = () => {
             <Route path="/pilgrimage" element={<Pilgrimage />} />
             <Route path="/temples" element={<TempleLocator />} />
             <Route path="/news" element={<NewsSection />} />
+            <Route path="/practice" element={<DailyPractice />} />
+            <Route path="/leelas" element={<KrishnaLeelas />} />
+            <Route path="/mala" element={<MalaCounter />} />
           </Routes>
         </main>
         <Footer />

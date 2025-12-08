@@ -89,6 +89,33 @@ export interface TempleWisdom {
   significance: string;
 }
 
+export interface PracticeEntry {
+  date: string;
+  japaRounds: number;
+  gitaMinutes: number;
+  meditationMinutes: number;
+  bhajanMinutes: number;
+  notes?: string;
+}
+
+export interface DailyPracticeLog {
+  entries: PracticeEntry[];
+  totalRounds: number;
+  currentStreak: number;
+  bestStreak: number;
+  lastUpdated: string;
+}
+
+export interface KrishnaLeela {
+  title: string;
+  category: string;
+  description: string;
+  fullStory: string;
+  moralLesson: string;
+  relatedVerses: string[];
+  imageDescription: string;
+}
+
 export enum LoadingState {
   IDLE = 'IDLE',
   LOADING = 'LOADING',
