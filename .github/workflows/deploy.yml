@@ -28,7 +28,7 @@ jobs:
       - name: Build application
         run: npm run build
         env:
-          VITE_API_URL: https://hare-krishna-api.railway.app
+          VITE_API_URL: https://hare-krishna-connect-production.up.railway.app
           BUILD_NUMBER: ${{ github.sha }}
 
       - name: Deploy to gh-pages branch
